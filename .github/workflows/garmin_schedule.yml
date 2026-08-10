@@ -2,7 +2,7 @@ name: Garmin to Telegram Sync
 
 on:
    schedule:
-      - cron: '*/15 * * * *'
+      - cron: '7,22,37,52 * * * *'
    workflow_dispatch: # This allows you to click a button to test it manually
 
 # Never let two runs overlap: both would push last_activity.txt and the
