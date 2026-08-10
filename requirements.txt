@@ -1,0 +1,8 @@
+# Pinned: an unattended cron job must not break because an upstream
+# release changed an API. Bump these deliberately.
+garminconnect==0.3.9
+# curl_cffi is required: without it 3 of garminconnect's 4 login strategies
+# abort and the plain-requests fallback gets a 403 from Garmin's WAF.
+curl_cffi==0.16.0
+fitdecode==0.11.0
+requests==2.34.2

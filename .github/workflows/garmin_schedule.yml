@@ -2,6 +2,9 @@ name: Garmin to Telegram Sync
 
 on:
    schedule:
+      # Offset from :00/:15/:30/:45 on purpose. GitHub's scheduler is
+      # best-effort and those minutes are the most congested, so runs
+      # queued there are the ones most often delayed or dropped.
       - cron: '7,22,37,52 * * * *'
    workflow_dispatch: # This allows you to click a button to test it manually
 
@@ -14,23 +17,25 @@ concurrency:
 jobs:
    sync:
       runs-on: ubuntu-latest
+      # A stuck login should not sit there burning Actions minutes.
+      timeout-minutes: 10
       permissions:
          contents: write
-      
+
       steps:
          - name: Checkout repository
            uses: actions/checkout@v4
-           
+
          - name: Set up Python
            uses: actions/setup-python@v5
            with:
               python-version: '3.10'
-              
+              # Restores the pip download cache, which is most of this
+              # job's wall time and therefore most of its billed minutes.
+              cache: pip
+
          - name: Install dependencies
-           # curl_cffi is required: without it 3 of garminconnect's 4 login
-           # strategies abort and the plain-requests fallback gets a 403 from
-           # Garmin's WAF.
-           run: pip install garminconnect curl_cffi requests fitdecode
+           run: pip install -r requirements.txt
 
          - name: Run script
            env:
@@ -40,7 +45,7 @@ jobs:
               BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
               CHAT_ID: ${{ secrets.CHAT_ID }}
            run: python garmin_sync.py
-           
+
          - name: Save state to repository
            run: |
               git config --global user.name "github-actions"
@@ -48,3 +53,17 @@ jobs:
               git add last_activity.txt
               # Only commit and push if the text file actually changed
               git diff --quiet && git diff --staged --quiet || (git commit -m "Update last activity ID" && git push)
+
+         - name: Report failure to Telegram
+           # Without this a broken run is invisible: the job just goes red in
+           # a tab nobody watches. Most likely cause is an expired
+           # GARMINTOKENS -> rerun make_garmin_token.py and update the secret.
+           if: failure()
+           env:
+              BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+              CHAT_ID: ${{ secrets.CHAT_ID }}
+              RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+           run: |
+              curl -sS -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" \
+                 --data-urlencode "chat_id=${CHAT_ID}" \
+                 --data-urlencode "text=Garmin sync failed: ${RUN_URL}"
