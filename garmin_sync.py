@@ -1,5 +1,6 @@
 import io
 import os
+import sys
 import zipfile
 from pathlib import Path
 
@@ -70,26 +71,22 @@ def process_activity(client, activity_id, bot_token, chat_id):
 
 
 def main():
-   garmin_email = os.getenv("GARMIN_EMAIL")
-   garmin_pass = os.getenv("GARMIN_PASS")
-   bot_token = os.getenv("BOT_TOKEN")
-   chat_id = os.getenv("CHAT_ID")
+   env = {name: os.getenv(name) for name in
+          ("GARMIN_EMAIL", "GARMIN_PASS", "BOT_TOKEN", "CHAT_ID")}
 
-   if not all([garmin_email, garmin_pass, bot_token, chat_id]):
-      print("Missing environment variables. Please check your setup.")
-      return
+   missing = [name for name, value in env.items() if not value]
+   if missing:
+      sys.exit(f"Missing environment variables: {', '.join(missing)}")
 
    try:
-      client = Garmin(garmin_email, garmin_pass)
+      client = Garmin(env["GARMIN_EMAIL"], env["GARMIN_PASS"])
       client.login()
    except Exception as e:
-      print(f"Failed to login to Garmin: {e}")
-      return
+      sys.exit(f"Failed to login to Garmin: {e}")
 
    latest_id = get_latest_activity(client)
    if not latest_id:
-      print("No activities found.")
-      return
+      sys.exit("No activities found.")
 
    last_id = ""
    if os.path.exists(STATE_FILE):
@@ -97,12 +94,11 @@ def main():
          last_id = f.read().strip()
 
    if latest_id == last_id:
-      print("No new activity.")
+      print(f"No new activity (latest is still {latest_id}).")
       return
 
-   if not process_activity(client, latest_id, bot_token, chat_id):
-      print("Activity not sent, state file left unchanged.")
-      return
+   if not process_activity(client, latest_id, env["BOT_TOKEN"], env["CHAT_ID"]):
+      sys.exit("Activity not sent, state file left unchanged.")
 
    with open(STATE_FILE, "w") as f:
       f.write(latest_id)
