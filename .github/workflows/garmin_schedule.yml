@@ -1,0 +1,40 @@
+name: Garmin to Telegram Sync
+
+on:
+   schedule:
+      - cron: '0 * * * *'
+   workflow_dispatch: # This allows you to click a button to test it manually
+
+jobs:
+   sync:
+      runs-on: ubuntu-latest
+      permissions:
+         contents: write
+      
+      steps:
+         - name: Checkout repository
+           uses: actions/checkout@v4
+           
+         - name: Set up Python
+           uses: actions/setup-python@v5
+           with:
+              python-version: '3.10'
+              
+         - name: Install dependencies
+           run: pip install garminconnect requests
+           
+         - name: Run script
+           env:
+              GARMIN_EMAIL: ${{ secrets.GARMIN_EMAIL }}
+              GARMIN_PASS: ${{ secrets.GARMIN_PASS }}
+              BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+              CHAT_ID: ${{ secrets.CHAT_ID }}
+           run: python garmin_sync.py
+           
+         - name: Save state to repository
+           run: |
+              git config --global user.name "github-actions"
+              git config --global user.email "actions@github.com"
+              git add last_activity.txt
+              # Only commit and push if the text file actually changed
+              git diff --quiet && git diff --staged --quiet || (git commit -m "Update last activity ID" && git push)
