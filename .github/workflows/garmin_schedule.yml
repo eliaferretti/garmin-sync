@@ -21,7 +21,7 @@ jobs:
               python-version: '3.10'
               
          - name: Install dependencies
-           run: pip install garminconnect requests
+           run: pip install garminconnect requests fitdecode
            
          - name: Run script
            env:
