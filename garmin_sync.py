@@ -71,15 +71,24 @@ def process_activity(client, activity_id, bot_token, chat_id):
 
 
 def main():
-   env = {name: os.getenv(name) for name in
-          ("GARMIN_EMAIL", "GARMIN_PASS", "BOT_TOKEN", "CHAT_ID")}
+   bot_token = os.getenv("BOT_TOKEN")
+   chat_id = os.getenv("CHAT_ID")
+   email = os.getenv("GARMIN_EMAIL")
+   password = os.getenv("GARMIN_PASS")
 
-   missing = [name for name, value in env.items() if not value]
+   missing = [name for name, value in
+              (("BOT_TOKEN", bot_token), ("CHAT_ID", chat_id)) if not value]
+
+   # GARMINTOKENS holds a saved session; Garmin.login() picks it up on its
+   # own. Credentials are only needed when there is no saved session.
+   if not os.getenv("GARMINTOKENS") and not (email and password):
+      missing.append("GARMINTOKENS (or GARMIN_EMAIL + GARMIN_PASS)")
+
    if missing:
       sys.exit(f"Missing environment variables: {', '.join(missing)}")
 
    try:
-      client = Garmin(env["GARMIN_EMAIL"], env["GARMIN_PASS"])
+      client = Garmin(email, password)
       client.login()
    except Exception as e:
       sys.exit(f"Failed to login to Garmin: {e}")
@@ -97,7 +106,7 @@ def main():
       print(f"No new activity (latest is still {latest_id}).")
       return
 
-   if not process_activity(client, latest_id, env["BOT_TOKEN"], env["CHAT_ID"]):
+   if not process_activity(client, latest_id, bot_token, chat_id):
       sys.exit("Activity not sent, state file left unchanged.")
 
    with open(STATE_FILE, "w") as f:

@@ -27,10 +27,14 @@ jobs:
               python-version: '3.10'
               
          - name: Install dependencies
-           run: pip install garminconnect requests fitdecode
-           
+           # curl_cffi is required: without it 3 of garminconnect's 4 login
+           # strategies abort and the plain-requests fallback gets a 403 from
+           # Garmin's WAF.
+           run: pip install garminconnect curl_cffi requests fitdecode
+
          - name: Run script
            env:
+              GARMINTOKENS: ${{ secrets.GARMINTOKENS }}
               GARMIN_EMAIL: ${{ secrets.GARMIN_EMAIL }}
               GARMIN_PASS: ${{ secrets.GARMIN_PASS }}
               BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
