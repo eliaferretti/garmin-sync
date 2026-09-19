@@ -19,11 +19,22 @@ const HELP = [
 ].join("\n");
 
 async function sendMessage(env, chatId, text) {
-  await fetch(`https://api.telegram.org/bot${env.BOT_TOKEN}/sendMessage`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ chat_id: chatId, text }),
-  });
+  const response = await fetch(
+    `https://api.telegram.org/bot${env.BOT_TOKEN}/sendMessage`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ chat_id: chatId, text }),
+    }
+  );
+  // A revoked or mistyped BOT_TOKEN fails right here, and the only symptom
+  // is a bot that never answers. Say so in the log.
+  if (!response.ok) {
+    console.log(
+      `sendMessage failed: ${response.status} ${await response.text()}`
+    );
+  }
+  return response.ok;
 }
 
 async function dispatch(env, resend) {
@@ -49,15 +60,31 @@ async function dispatch(env, resend) {
 
 export default {
   async fetch(request, env) {
-    // Telegram only ever POSTs. A GET is someone poking the URL.
+    // Telegram only ever POSTs. A GET is you checking the deploy worked, so
+    // report which settings exist. Booleans only: never echo a secret.
     if (request.method !== "POST") {
-      return new Response("ok");
+      const configured = {
+        BOT_TOKEN: Boolean(env.BOT_TOKEN),
+        CHAT_ID: Boolean(env.CHAT_ID),
+        GITHUB_TOKEN: Boolean(env.GITHUB_TOKEN),
+        GITHUB_REPO: env.GITHUB_REPO || null,
+        WEBHOOK_SECRET: Boolean(env.WEBHOOK_SECRET),
+      };
+      return new Response(
+        JSON.stringify({ bot: "garmin-sync", configured }, null, 2),
+        { headers: { "Content-Type": "application/json" } }
+      );
     }
 
     // Telegram echoes back the secret registered with setWebhook. Without
     // this, anyone who learned the URL could drive the bot.
     const token = request.headers.get("X-Telegram-Bot-Api-Secret-Token");
     if (!env.WEBHOOK_SECRET || token !== env.WEBHOOK_SECRET) {
+      console.log(
+        env.WEBHOOK_SECRET
+          ? "403: secret_token sent by Telegram does not match WEBHOOK_SECRET"
+          : "403: WEBHOOK_SECRET is not set on this Worker"
+      );
       return new Response("forbidden", { status: 403 });
     }
 
@@ -65,6 +92,7 @@ export default {
     try {
       update = await request.json();
     } catch {
+      console.log("ignored: body was not JSON");
       return new Response("ok");
     }
 
@@ -74,7 +102,15 @@ export default {
 
     // Everything below answers 200 even when it refuses: on a non-2xx
     // Telegram redelivers the same update over and over for hours.
-    if (!text || String(chatId) !== String(env.CHAT_ID)) {
+    if (!text) {
+      console.log("ignored: update carried no message text");
+      return new Response("ok");
+    }
+    if (String(chatId) !== String(env.CHAT_ID)) {
+      // By far the most common setup mistake, and previously invisible.
+      console.log(
+        `ignored: message from chat ${chatId}, but CHAT_ID is ${env.CHAT_ID}`
+      );
       return new Response("ok");
     }
 
@@ -108,7 +144,9 @@ export default {
       resend = String(count);
     }
 
+    console.log(`${command} from ${chatId} -> dispatch resend="${resend}"`);
     const response = await dispatch(env, resend);
+    console.log(`GitHub dispatch returned ${response.status}`);
 
     if (response.ok) {
       await sendMessage(
