@@ -39,7 +39,7 @@ async function sendMessage(env, chatId, text) {
 
 async function dispatch(env, resend) {
   const response = await fetch(
-    `https://api.github.com/repos/${env.GITHUB_REPO}/dispatches`,
+    `https://api.github.com/repos/${String(env.GITHUB_REPO).trim()}/dispatches`,
     {
       method: "POST",
       headers: {
@@ -79,7 +79,7 @@ export default {
     // Telegram echoes back the secret registered with setWebhook. Without
     // this, anyone who learned the URL could drive the bot.
     const token = request.headers.get("X-Telegram-Bot-Api-Secret-Token");
-    if (!env.WEBHOOK_SECRET || token !== env.WEBHOOK_SECRET) {
+    if (!env.WEBHOOK_SECRET || token !== String(env.WEBHOOK_SECRET).trim()) {
       console.log(
         env.WEBHOOK_SECRET
           ? "403: secret_token sent by Telegram does not match WEBHOOK_SECRET"
@@ -96,6 +96,10 @@ export default {
       return new Response("ok");
     }
 
+    // Dashboard paste often carries a trailing space or newline, and an
+    // untrimmed compare then rejects every message with no visible cause.
+    const expectedChat = String(env.CHAT_ID || "").trim();
+
     const message = update.message || update.edited_message;
     const text = message && message.text ? message.text.trim() : "";
     const chatId = message && message.chat ? message.chat.id : null;
@@ -106,10 +110,12 @@ export default {
       console.log("ignored: update carried no message text");
       return new Response("ok");
     }
-    if (String(chatId) !== String(env.CHAT_ID)) {
+    if (String(chatId).trim() !== expectedChat) {
       // By far the most common setup mistake, and previously invisible.
       console.log(
-        `ignored: message from chat ${chatId}, but CHAT_ID is ${env.CHAT_ID}`
+        `ignored: message came from chat ${chatId}, ` +
+          `but CHAT_ID is set to "${expectedChat}". ` +
+          `If you want this chat, set CHAT_ID to ${chatId} and redeploy.`
       );
       return new Response("ok");
     }
