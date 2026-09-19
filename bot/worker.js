@@ -63,6 +63,11 @@ export default {
     // Telegram only ever POSTs. A GET is you checking the deploy worked, so
     // report which settings exist. Booleans only: never echo a secret.
     if (request.method !== "POST") {
+      // Browsers request this straight after the health check and it just
+      // clutters the log with a second entry.
+      if (new URL(request.url).pathname === "/favicon.ico") {
+        return new Response(null, { status: 204 });
+      }
       const configured = {
         BOT_TOKEN: Boolean(env.BOT_TOKEN),
         CHAT_ID: Boolean(env.CHAT_ID),
