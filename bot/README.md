@@ -119,8 +119,26 @@ help - List commands
 
 ## Troubleshooting
 
-Check the Worker's live logs first: Cloudflare dashboard → your Worker →
-Logs. Every Telegram message shows up there.
+**Is the Worker deployed and configured?** Open the Worker URL in a browser.
+It answers with which settings are present, never their values:
+
+```json
+{ "bot": "garmin-sync",
+  "configured": { "BOT_TOKEN": true, "CHAT_ID": true, "GITHUB_TOKEN": true,
+                  "GITHUB_REPO": "eliaferretti/garmin-sync",
+                  "WEBHOOK_SECRET": true } }
+```
+
+Any `false` is your problem. If the page does not load at all, the Worker
+is not deployed.
+
+**Why was a message ignored?** Cloudflare dashboard → your Worker → Logs
+→ **Begin log stream**, then message the bot. The stream only captures while
+it is open, so start it first. The Worker logs a reason for every message it
+drops.
+
+Cloudflare secrets only take effect **after a redeploy**. Setting a value and
+not redeploying is the classic cause of a bot that answers nothing at all.
 
 | Symptom | Cause |
 | --- | --- |
@@ -130,6 +148,10 @@ Logs. Every Telegram message shows up there.
 | "GitHub returned 401" | `GITHUB_TOKEN` expired or was revoked. Redo step 1 and update the secret |
 | "GitHub returned 403" | Token is missing **Contents: Read and write**, or was not scoped to this repo |
 | "GitHub returned 404" | `GITHUB_REPO` is wrong, or the token cannot see the repo |
+| Bot silent, log says `ignored: message from chat ...` | `CHAT_ID` is wrong. Use the number shown in the log |
+| Bot silent, log says `403: ...` | `WEBHOOK_SECRET` mismatch, or no redeploy after setting it |
+| Bot silent, log says `sendMessage failed: 401` | `BOT_TOKEN` in Cloudflare is wrong or was revoked |
+| Bot silent, no log lines at all | Telegram is not reaching the Worker. Check `getWebhookInfo` |
 | Bot replies "Queued" but nothing arrives | The workflow ran and failed — check the Actions tab. Usually an expired `GARMINTOKENS` |
 
 Two things worth knowing:
