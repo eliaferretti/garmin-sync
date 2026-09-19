@@ -6,7 +6,19 @@ on:
       # best-effort and those minutes are the most congested, so runs
       # queued there are the ones most often delayed or dropped.
       - cron: '7,22,37,52 * * * *'
-   workflow_dispatch: # This allows you to click a button to test it manually
+   # Manual run, from the GitHub mobile app or the Actions tab. Leave
+   # "resend" blank for a normal sync, or give a count to re-send the N most
+   # recent activities even though they were sent already.
+   workflow_dispatch:
+      inputs:
+         resend:
+            description: 'Re-send the N most recent activities (blank = normal sync)'
+            required: false
+            default: ''
+   # Fired by the Telegram bot (see bot/README.md). repository_dispatch always
+   # runs the workflow from the default branch, so this must stay on main.
+   repository_dispatch:
+      types: [telegram-command]
 
 # Never let two runs overlap: both would push last_activity.txt and the
 # second push would be rejected.
@@ -44,9 +56,21 @@ jobs:
               GARMIN_PASS: ${{ secrets.GARMIN_PASS }}
               BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
               CHAT_ID: ${{ secrets.CHAT_ID }}
-           run: python garmin_sync.py
+              # Through the environment, never inlined into the script body:
+              # ${{ }} interpolation in a run: block is a shell injection.
+              RESEND: ${{ inputs.resend || github.event.client_payload.resend }}
+           run: |
+              if [ -n "$RESEND" ]; then
+                 python garmin_sync.py --last "$RESEND"
+              else
+                 python garmin_sync.py
+              fi
 
          - name: Save state to repository
+           # always(), not the default: when a batch of catch-up activities
+           # fails halfway, the ones already sent are recorded in the state
+           # file and must be committed, or the next run re-sends them.
+           if: always()
            run: |
               git config --global user.name "github-actions"
               git config --global user.email "actions@github.com"
