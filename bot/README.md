@@ -41,8 +41,19 @@ Copy the token. It is shown only once.
 
 ### 2. Make up a webhook secret
 
-Any random string, e.g. from a password generator. Used to prove that
-requests to the Worker really come from Telegram. Call it `WEBHOOK_SECRET`.
+Used to prove that requests to the Worker really come from Telegram.
+
+Telegram accepts **only** `A-Z`, `a-z`, `0-9`, `_` and `-`, 1-256 characters.
+A default password generator will include punctuation and setWebhook then
+fails with `Bad Request: secret token contains illegal characters`. Generate
+a valid one with:
+
+```
+python -c "import secrets,string; print(''.join(secrets.choice(string.ascii_letters+string.digits+'_-') for _ in range(48)))"
+```
+
+Call it `WEBHOOK_SECRET`. The value in step 5 must match the one in step 4
+exactly.
 
 ### 3. Deploy the Worker
 
@@ -73,9 +84,13 @@ their names. Fetch them from BotFather and @userinfobot as above rather than
 hunting for them in GitHub. The same applies to these Cloudflare secrets once
 saved, so keep them in a password manager if you want them later.
 
-Do not use BotFather's `/revoke`: it issues a *new* token and invalidates the
-one in your GitHub secret, which would break the scheduled sync until you
-updated it there too.
+Do not use BotFather's `/revoke` just to look a token up: it issues a *new*
+one and invalidates the token in your GitHub secret, breaking the scheduled
+sync until you update it there too.
+
+The exception is a token that has leaked, which should be revoked. After
+rotating, update `BOT_TOKEN` in **both** places or the two halves disagree:
+the repo's Actions secrets, and this Worker's secrets.
 
 Get `CHAT_ID` before step 5. The usual alternative, calling `getUpdates`,
 stops working once a webhook is registered.
@@ -109,6 +124,8 @@ Logs. Every Telegram message shows up there.
 
 | Symptom | Cause |
 | --- | --- |
+| setWebhook says `secret token contains illegal characters` | `WEBHOOK_SECRET` has characters outside `A-Za-z0-9_-` — see step 2 |
+| Worker replies 403 to Telegram, bot silent | The `secret_token` in step 5 does not match Cloudflare's `WEBHOOK_SECRET`, or the Worker was not redeployed after the secret was set |
 | Bot never replies | Webhook not registered. Visit `https://api.telegram.org/bot<BOT_TOKEN>/getWebhookInfo` — `url` should be your Worker, and `last_error_message` tells you what Telegram hit |
 | "GitHub returned 401" | `GITHUB_TOKEN` expired or was revoked. Redo step 1 and update the secret |
 | "GitHub returned 403" | Token is missing **Contents: Read and write**, or was not scoped to this repo |
