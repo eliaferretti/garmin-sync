@@ -57,15 +57,28 @@ Note the Worker URL: `https://<name>.<subdomain>.workers.dev`
 Worker → Settings → Variables and Secrets. Add all five as **Secret**
 (not plaintext):
 
-| Name | Value |
-| --- | --- |
-| `BOT_TOKEN` | Same bot token the workflow uses |
-| `CHAT_ID` | Same chat ID the workflow uses |
-| `GITHUB_TOKEN` | The token from step 1 |
-| `GITHUB_REPO` | `eliaferretti/garmin-sync` |
-| `WEBHOOK_SECRET` | The string from step 2 |
+| Name | Value | Where to get it |
+| --- | --- | --- |
+| `BOT_TOKEN` | `8123456789:AAHx7Kq...` | BotFather -> `/mybots` -> your bot -> **API Token** |
+| `CHAT_ID` | `123456789` | Message **@userinfobot**, which replies with your ID |
+| `GITHUB_TOKEN` | `github_pat_...` | The token from step 1 |
+| `GITHUB_REPO` | `eliaferretti/garmin-sync` | - |
+| `WEBHOOK_SECRET` | Your random string | The one you made up in step 2 |
 
 Deploy once more so the new values take effect.
+
+`BOT_TOKEN` and `CHAT_ID` are the same two values the workflow already uses,
+but **GitHub secrets cannot be read back** — the Settings page shows only
+their names. Fetch them from BotFather and @userinfobot as above rather than
+hunting for them in GitHub. The same applies to these Cloudflare secrets once
+saved, so keep them in a password manager if you want them later.
+
+Do not use BotFather's `/revoke`: it issues a *new* token and invalidates the
+one in your GitHub secret, which would break the scheduled sync until you
+updated it there too.
+
+Get `CHAT_ID` before step 5. The usual alternative, calling `getUpdates`,
+stops working once a webhook is registered.
 
 ### 5. Point Telegram at the Worker
 
